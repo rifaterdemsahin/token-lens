@@ -116,4 +116,6 @@ def test_claude_estimates_are_flagged():
     assert all("ESTIMATE" in m["label"] for m in est)
     for row in r["rows"]:
         assert row["models"]["claude-opus-5-5"]["estimate"] is True
-    assert next(x for x in r["rows"] if x["code"] == "en")["models"]["claude-opus-5-5"]["ratio"] == 1.0
+    by = {x["code"]: x["models"]["claude-opus-5-5"] for x in r["rows"]}
+    assert by["en"]["ratio"] == 1.0 and by["es"]["ratio"] > 1.3 and 1.1 < by["zh"]["ratio"] < 1.2
+    assert by["hi"]["ratio"] >= 2.5 and by["ko"]["basis"] == "reported" and by["tr"]["basis"] == "assumed"

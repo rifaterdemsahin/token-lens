@@ -10,7 +10,6 @@ from .models import DEFAULT_MODEL
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 import time
-import unicodedata
 
 import psutil
 
@@ -58,27 +57,25 @@ SENTENCES = {  # the same sentence in 11 languages (hand-written parallel text)
 }
 
 
-# Anthropic's tokenizer is not public, so Claude counts here are ESTIMATES from a per-script
-# chars-per-token rule of thumb. Only the ASCII/English constant (~3.5) comes from Anthropic's
-# published guidance; the other constants are assumptions, not measurements.
+# Anthropic's tokenizer is not public, so Claude counts are ESTIMATES (not measured).
+# English baseline = chars / 3.5 (Anthropic's rough guidance) x 1.30 (reported ~30% more tokens for the
+# generation-5 tokenizer; unverified). Other languages = baseline x a ratio taken from third-party
+# reported ranges where one exists ("reported", midpoint used), else an assumption ("assumed").
 ESTIMATED = {"claude-fable-5-2": "Claude Fable 5.2", "claude-opus-5-5": "Claude Opus 5.5"}
-CHARS_PER_TOKEN = {"ascii": 3.5, "latin": 2.5, "cyrillic": 1.8, "greek": 1.8, "cjk": 1.0, "indic_thai": 1.0}
+GEN5_FACTOR = 1.30
+EST_RATIO = {  # code: (ratio vs English, basis, note)
+    "en": (1.0, "baseline", ""), "es": (1.43, "reported", "reported 1.42-1.45x for European text"),
+    "zh": (1.15, "reported", "reported ~1.15x"), "ko": (2.25, "reported", "reported 1.5-3.0x, midpoint"),
+    "ja": (2.25, "reported", "reported 1.5-3.0x, midpoint"), "hi": (3.25, "reported", "reported 2.5-4x+, midpoint"),
+    "bn": (3.25, "reported", "reported 2.5-4x+, midpoint"),
+    "tr": (1.8, "assumed", "no reported figure"), "ru": (1.9, "assumed", "no reported figure"),
+    "el": (1.9, "assumed", "no reported figure"), "th": (2.5, "assumed", "no reported figure"),
+}
 
 
-def _script(ch: str) -> str:
-    if ord(ch) < 128:
-        return "ascii"
-    n = unicodedata.name(ch, "")
-    for k, v in (("LATIN", "latin"), ("CYRILLIC", "cyrillic"), ("GREEK", "greek")):
-        if n.startswith(k):
-            return v
-    if n.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "IDEOGRAPHIC")) or ord(ch) in (0x3001, 0x3002, 0xFF0C):
-        return "cjk"
-    return "indic_thai"  # Devanagari, Bengali, Thai and anything else non-Latin
-
-
-def estimate_claude_tokens(text: str) -> int:
-    return max(1, round(sum(1 / CHARS_PER_TOKEN[_script(c)] for c in text)))
+def estimate_claude_tokens(code: str, english_text: str) -> int:
+    base = len(english_text) / 3.5 * GEN5_FACTOR
+    return max(1, round(base * EST_RATIO[code][0]))
 
 
 @app.get("/api/language-tax")
@@ -97,7 +94,8 @@ def language_tax():
             row["models"][slug] = {"tokens": len(enc.ids),
                                    "unk": sum(1 for x in enc.tokens if x in ("[UNK]", "<unk>"))}
         for k in ESTIMATED:
-            row["models"][k] = {"tokens": estimate_claude_tokens(text), "unk": 0, "estimate": True}
+            row["models"][k] = {"tokens": estimate_claude_tokens(code, SENTENCES["en"][1]), "unk": 0, "estimate": True,
+                                "basis": EST_RATIO[code][1], "basis_note": EST_RATIO[code][2]}
         rows.append(row)
     en = rows[0]["models"]
     for r in rows:
