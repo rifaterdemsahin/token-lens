@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Token Lens · Language tax</title><link rel="stylesheet" href="/static/site.css"><script src="/static/nav.js"></script>
-<style>.bar{height:14px;border-radius:3px;background:var(--c-axes);min-width:2px}.bar.hi{background:var(--c-stats)}
+<style>.bar{height:14px;border-radius:3px;background:var(--c-axes);min-width:2px}.bar.hi{background:var(--c-stats)}.bar.est{opacity:.55}
 img.info{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--bd);display:block;margin:0 auto}td.n{text-align:right}</style></head>
 <body><nav class="top"><a href="/">Token Lens</a><a href="/models"><span lang="en">Models</span><span lang="tr">Modeller</span></a><a href="/architecture"><span lang="en">Architecture</span><span lang="tr">Mimari</span></a><a href="/language-tax"><span lang="en">Language tax</span><span lang="tr">Dil vergisi</span></a><span class="sp"></span><span class="flags" role="group" aria-label="language"><button data-l="en" title="English" aria-label="English">🇬🇧</button><button data-l="tr" title="Türkçe" aria-label="Türkçe">🇹🇷</button></span></nav><main>
 <h1><span lang="en">The hidden language tax</span><span lang="tr">Gizli dil vergisi</span></h1>
@@ -19,6 +19,8 @@ img.info{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--bd
 
 <details class="sec s-axes" open><summary><span lang="en">Measured: the same sentence in 11 languages</span><span lang="tr">Ölçüm: aynı cümle 11 dilde</span></summary><div class="body">
 <div class="row"><label><span lang="en">Model</span><span lang="tr">Model</span> <select id="m"></select></label></div>
+<div class="callout" id="est" hidden><span lang="en"><b>Estimate, not measured.</b> Anthropic's tokenizer is not public, so these Claude numbers come from a rule of thumb (characters per token by script: English ≈ 3.5, which matches Anthropic's rough guidance; the other values are assumptions). The same estimate is used for Fable 5.2 and Opus 5.5 because there is no data to tell them apart; real counts will differ, possibly by a lot, and can be checked with Anthropic's token-counting API.</span>
+<span lang="tr"><b>Tahmindir, ölçüm değildir.</b> Anthropic'in tokenizer'ı herkese açık olmadığından bu Claude sayıları bir pratik kurala dayanır (betiğe göre token başına karakter: İngilizce ≈ 3,5, Anthropic'in kaba önerisiyle uyumlu; diğer değerler varsayımdır). Fable 5.2 ve Opus 5.5'i ayırt edecek veri olmadığından ikisi için aynı tahmin kullanılır; gerçek sayılar, belki çok, farklı olabilir ve Anthropic'in token sayma API'siyle doğrulanabilir.</span></div>
 <div style="overflow-x:auto"><table id="t"></table></div>
 <p class="mut" lang="en">ratio = tokens ÷ English tokens for the same model. Bars show the ratio; red = 2× or more. “UNK” = characters the vocabulary cannot represent at all (the Turkish-only BERT has no Hindi, Thai, …).</p>
 <p class="mut" lang="tr">oran = aynı modelde token sayısı ÷ İngilizce token sayısı. Çubuklar oranı gösterir; kırmızı = 2× veya fazlası. “UNK” = sözlüğün hiç gösteremediği karakterler (yalnızca Türkçe BERT'te Hintçe, Tayca vb. yoktur).</p>
@@ -35,9 +37,9 @@ img.info{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--bd
 (async()=>{
   const d=await (await fetch("/api/language-tax")).json();
   const sel=document.getElementById("m"); sel.innerHTML=d.models.map(m=>`<option value="${m.slug}">${m.label}</option>`).join("");
-  const draw=()=>{const s=sel.value, max=Math.max(...d.rows.map(r=>r.models[s].ratio));
+  const draw=()=>{const s=sel.value, est=!!d.rows[0].models[s].estimate; document.getElementById("est").hidden=!est; max=Math.max(...d.rows.map(r=>r.models[s].ratio));
     document.getElementById("t").innerHTML="<tr><th>language</th><th>sentence</th><th>chars</th><th>bytes</th><th>tokens</th><th>ratio</th><th></th><th>UNK</th></tr>"+
-    d.rows.map(r=>{const v=r.models[s];return `<tr><td>${r.language}</td><td style="font-family:system-ui;max-width:380px">${r.text}</td><td class="n">${r.chars}</td><td class="n">${r.bytes}</td><td class="n">${v.tokens}</td><td class="n"><b>${v.ratio.toFixed(1)}×</b></td><td style="width:22%"><div class="bar ${v.ratio>=2?"hi":""}" style="width:${v.ratio/max*100}%"></div></td><td class="n">${v.unk||""}</td></tr>`}).join("");};
+    d.rows.map(r=>{const v=r.models[s];return `<tr><td>${r.language}</td><td style="font-family:system-ui;max-width:380px">${r.text}</td><td class="n">${r.chars}</td><td class="n">${r.bytes}</td><td class="n">${est?"~":""}${v.tokens}</td><td class="n"><b>${est?"~":""}${v.ratio.toFixed(1)}×</b></td><td style="width:22%"><div class="bar ${v.ratio>=2?"hi":""} ${est?"est":""}" ${est?'title="estimate"':""} style="width:${v.ratio/max*100}%"></div></td><td class="n">${v.unk||""}</td></tr>`}).join("");};
   sel.onchange=draw; draw();
 })();
 </script></body></html>

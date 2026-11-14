@@ -107,3 +107,13 @@ def test_language_tax():
     assert en["models"]["gpt2"]["ratio"] == 1.0
     assert hi["models"]["gpt2"]["tokens"] > 2 * en["models"]["gpt2"]["tokens"]
     assert c.get("/language-tax").status_code == 200 and c.get("/static/language-tax.jpg").status_code == 200
+
+
+def test_claude_estimates_are_flagged():
+    r = c.get("/api/language-tax").json()
+    est = [m for m in r["models"] if m.get("estimate")]
+    assert {m["slug"] for m in est} == {"claude-fable-5-2", "claude-opus-5-5"}
+    assert all("ESTIMATE" in m["label"] for m in est)
+    for row in r["rows"]:
+        assert row["models"]["claude-opus-5-5"]["estimate"] is True
+    assert next(x for x in r["rows"] if x["code"] == "en")["models"]["claude-opus-5-5"]["ratio"] == 1.0

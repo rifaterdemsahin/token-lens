@@ -10,6 +10,7 @@ from .models import DEFAULT_MODEL
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 import time
+import unicodedata
 
 import psutil
 
@@ -57,10 +58,35 @@ SENTENCES = {  # the same sentence in 11 languages (hand-written parallel text)
 }
 
 
+# Anthropic's tokenizer is not public, so Claude counts here are ESTIMATES from a per-script
+# chars-per-token rule of thumb. Only the ASCII/English constant (~3.5) comes from Anthropic's
+# published guidance; the other constants are assumptions, not measurements.
+ESTIMATED = {"claude-fable-5-2": "Claude Fable 5.2", "claude-opus-5-5": "Claude Opus 5.5"}
+CHARS_PER_TOKEN = {"ascii": 3.5, "latin": 2.5, "cyrillic": 1.8, "greek": 1.8, "cjk": 1.0, "indic_thai": 1.0}
+
+
+def _script(ch: str) -> str:
+    if ord(ch) < 128:
+        return "ascii"
+    n = unicodedata.name(ch, "")
+    for k, v in (("LATIN", "latin"), ("CYRILLIC", "cyrillic"), ("GREEK", "greek")):
+        if n.startswith(k):
+            return v
+    if n.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "IDEOGRAPHIC")) or ord(ch) in (0x3001, 0x3002, 0xFF0C):
+        return "cjk"
+    return "indic_thai"  # Devanagari, Bengali, Thai and anything else non-Latin
+
+
+def estimate_claude_tokens(text: str) -> int:
+    return max(1, round(sum(1 / CHARS_PER_TOKEN[_script(c)] for c in text)))
+
+
 @app.get("/api/language-tax")
 def language_tax():
     """Token counts for the same sentence per language per model, relative to English."""
     models = available_models()
+    models_out = models + [{"slug": k, "label": v + " - ESTIMATE (not measured)", "hf": None, "estimate": True}
+                           for k, v in ESTIMATED.items()]
     toks = {m["slug"]: get_tokenizer(m["slug"]) for m in models}
     rows = []
     for code, (name, text) in SENTENCES.items():
@@ -70,12 +96,15 @@ def language_tax():
             enc = t.encode(text, add_special_tokens=False)
             row["models"][slug] = {"tokens": len(enc.ids),
                                    "unk": sum(1 for x in enc.tokens if x in ("[UNK]", "<unk>"))}
+        for k in ESTIMATED:
+            row["models"][k] = {"tokens": estimate_claude_tokens(text), "unk": 0, "estimate": True}
         rows.append(row)
     en = rows[0]["models"]
     for r in rows:
         for slug, v in r["models"].items():
             v["ratio"] = v["tokens"] / en[slug]["tokens"]
-    return {"models": models, "rows": rows}
+    return {"models": models_out, "rows": rows,
+            "estimate_note": "Claude tokenizer is not public; counts for Claude models are heuristic estimates."}
 
 
 @app.get("/language-tax")
