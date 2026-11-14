@@ -42,7 +42,7 @@ def stats():
             "mem_pct": vm.percent, "models_loaded": _get_lens.cache_info().currsize}
 
 
-SENTENCES = {  # the same sentence in 11 languages (hand-written parallel text)
+SENTENCES = {  # the same sentence in 14 languages (hand-written parallel text)
     "en": ("English", "Hello, my name is Sarah and I would like to order two coffees, please."),
     "es": ("Spanish", "Hola, me llamo Sarah y me gustaría pedir dos cafés, por favor."),
     "tr": ("Turkish", "Merhaba, benim adım Sarah ve iki kahve sipariş etmek istiyorum, lütfen."),
@@ -53,6 +53,9 @@ SENTENCES = {  # the same sentence in 11 languages (hand-written parallel text)
     "el": ("Greek", "Γεια σας, με λένε Σάρα και θα ήθελα να παραγγείλω δύο καφέδες, παρακαλώ."),
     "hi": ("Hindi", "नमस्ते, मेरा नाम सारा है और मैं दो कॉफ़ी ऑर्डर करना चाहती हूँ, कृपया।"),
     "bn": ("Bengali", "হ্যালো, আমার নাম সারা এবং আমি দুটি কফি অর্ডার করতে চাই, দয়া করে।"),
+    "ta": ("Tamil", "வணக்கம், என் பெயர் சாரா, எனக்கு இரண்டு காபி ஆர்டர் செய்ய வேண்டும், தயவுசெய்து."),
+    "te": ("Telugu", "నమస్కారం, నా పేరు సారా, దయచేసి నాకు రెండు కాఫీలు ఆర్డర్ చేయాలి."),
+    "mr": ("Marathi", "नमस्कार, माझे नाव सारा आहे आणि मला दोन कॉफी मागवायच्या आहेत, कृपया."),
     "th": ("Thai", "สวัสดี ฉันชื่อซาร่า ฉันอยากสั่งกาแฟสองแก้ว ค่ะ"),
 }
 
@@ -68,6 +71,9 @@ EST_RATIO = {  # code: (ratio vs English, basis, note)
     "zh": (1.15, "reported", "reported ~1.15x"), "ko": (2.25, "reported", "reported 1.5-3.0x, midpoint"),
     "ja": (2.25, "reported", "reported 1.5-3.0x, midpoint"), "hi": (3.25, "reported", "reported 2.5-4x+, midpoint"),
     "bn": (3.25, "reported", "reported 2.5-4x+, midpoint"),
+    "ta": (3.25, "assumed", "no reported figure; Hindi/Bengali range assumed"),
+    "te": (3.25, "assumed", "no reported figure; Hindi/Bengali range assumed"),
+    "mr": (3.25, "assumed", "no reported figure; Hindi/Bengali range assumed"),
     "tr": (1.8, "assumed", "no reported figure"), "ru": (1.9, "assumed", "no reported figure"),
     "el": (1.9, "assumed", "no reported figure"), "th": (2.5, "assumed", "no reported figure"),
 }
@@ -87,7 +93,7 @@ def language_tax():
     toks = {m["slug"]: get_tokenizer(m["slug"]) for m in models}
     rows = []
     for code, (name, text) in SENTENCES.items():
-        row = {"code": code, "language": name, "text": text, "chars": len(text),
+        row = {"code": code, "language": name, "indic": code in ("hi", "bn", "ta", "te", "mr"), "text": text, "chars": len(text),
                "bytes": len(text.encode("utf-8")), "models": {}}
         for slug, t in toks.items():
             enc = t.encode(text, add_special_tokens=False)

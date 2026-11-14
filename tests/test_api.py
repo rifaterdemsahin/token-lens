@@ -119,3 +119,13 @@ def test_claude_estimates_are_flagged():
     by = {x["code"]: x["models"]["claude-opus-5-5"] for x in r["rows"]}
     assert by["en"]["ratio"] == 1.0 and by["es"]["ratio"] > 1.3 and 1.1 < by["zh"]["ratio"] < 1.2
     assert by["hi"]["ratio"] >= 2.5 and by["ko"]["basis"] == "reported" and by["tr"]["basis"] == "assumed"
+
+
+def test_top5_taxed_languages_are_indic():
+    # The page text claims this for the measured tokenizers; keep the claim honest.
+    rows = c.get("/api/language-tax").json()["rows"]
+    meas = [k for k in ("gpt2", "qwen2.5-0.5b", "gemma-3-270m") if k in rows[0]["models"]]
+    if len(meas) < 3:
+        pytest.skip("needs all three general-purpose models extracted")
+    top = sorted(rows, key=lambda r: -sum(r["models"][k]["ratio"] for k in meas))[:5]
+    assert all(r["indic"] for r in top), [r["language"] for r in top]
