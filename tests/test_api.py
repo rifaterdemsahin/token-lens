@@ -79,3 +79,22 @@ def test_same_id_differs_across_models():
     assert q[0]["token_id"] == 10566 != 3364
     g = c.get("/api/token/10566", params={"model": "qwen2.5-0.5b"}).json()
     assert g["dims"] == 896 and len(g["vector"]) == 896
+
+
+def test_stats():
+    r = c.get("/api/stats").json()
+    assert r["rss_mb"] > 0 and r["mem_total_mb"] > 0 and "cpu_proc" in r
+
+
+def test_turkish_model():
+    slugs = {m["slug"] for m in c.get("/api/models").json()["models"]}
+    if "bert-turkish" not in slugs:
+        pytest.skip("bert-turkish data not extracted")
+    t = c.get("/api/tokenize", params={"text": "kral kadın elma", "model": "bert-turkish"}).json()
+    assert [x["token"] for x in t] == ["kral", "kadın", "elma"]
+    assert c.get("/api/meta", params={"model": "bert-turkish"}).json()["lang"] == "tr"
+    s = c.get("/api/axes", params={"tokens": "kral,kraliçe,adam,kadın,elma,armut,üzüm", "model": "bert-turkish"}).json()["scores"]
+    assert s["kadın"]["Femininity"] > s["adam"]["Femininity"] and s["kraliçe"]["Femininity"] > s["kral"]["Femininity"]
+    assert min(s[f]["Fruit"] for f in ("elma", "armut", "üzüm")) > max(s["kral"]["Fruit"], s["kraliçe"]["Fruit"]) + 0.1
+    r = c.get("/api/analogy", params={"a": "kral", "b": "adam", "c": "kadın", "k": 5, "model": "bert-turkish"}).json()
+    assert any(x["token"].lower().startswith("kraliçe") for x in r)

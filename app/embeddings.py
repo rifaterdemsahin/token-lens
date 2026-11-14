@@ -19,6 +19,13 @@ AXES = {
     "Fruit": {"pos": ["apple", "pear", "grape", "banana"], "neg": NEUTRAL},
     "Power": {"pairs": [["powerful", "weak"], ["strong", "weak"], ["ruler", "servant"]]},
 }
+NEUTRAL_TR = ["masa", "araba", "ev", "sandalye", "kitap", "kapı", "yol", "kağıt"]
+AXES_TR = {  # Turkish has no gendered "he/she" (o), so Femininity uses other pairs
+    "Femininity": {"pairs": [["kraliçe", "kral"], ["kadın", "adam"], ["anne", "baba"], ["kız", "oğlan"]]},
+    "Royalty": {"pairs": [["kral", "adam"], ["kraliçe", "kadın"], ["prens", "oğlan"], ["taç", "şapka"]]},
+    "Fruit": {"pos": ["elma", "armut", "üzüm", "muz"], "neg": NEUTRAL_TR},
+    "Power": {"pairs": [["güçlü", "zayıf"], ["kuvvetli", "zayıf"], ["hükümdar", "hizmetçi"]]},
+}
 
 
 def _byte_decoder():
@@ -38,6 +45,9 @@ class Lens:
     def __init__(self, slug: str = DEFAULT_MODEL):
         data_dir = os.path.join(DATA_ROOT, slug)
         self.slug = slug
+        self.lang = MODELS[slug].get("lang", "en")
+        self.axes = AXES_TR if self.lang == "tr" else AXES
+        self.neutral = NEUTRAL_TR if self.lang == "tr" else NEUTRAL
         self.tok = Tokenizer.from_file(os.path.join(data_dir, "tokenizer.json"))
         self.emb = np.load(os.path.join(data_dir, "embeddings.f16.npy"), mmap_mode="r")
         self.pca = np.load(os.path.join(data_dir, "pca3.npy"), mmap_mode="r")
@@ -123,11 +133,11 @@ class Lens:
         return a / (np.linalg.norm(a) or 1.0)
 
     def axes_info(self):
-        return {name: d for name, d in AXES.items()}
+        return dict(self.axes)
 
     def named_axis(self, name: str) -> np.ndarray:
         if name not in self._axes_cache:
-            self._axes_cache[name] = self.axis_vector(AXES[name])
+            self._axes_cache[name] = self.axis_vector(self.axes[name])
         return self._axes_cache[name]
 
     def score(self, v: np.ndarray, axis: np.ndarray) -> float:
@@ -135,9 +145,9 @@ class Lens:
 
     def axes_scores(self, words, custom=None):
         """custom: {name: {"pos": [...], "neg": [...]}}"""
-        axes = {n: self.named_axis(n) for n in AXES}
+        axes = {n: self.named_axis(n) for n in self.axes}
         for n, d in (custom or {}).items():
-            axes[n] = self.axis_vector({"pos": d["pos"], "neg": d.get("neg") or NEUTRAL})
+            axes[n] = self.axis_vector({"pos": d["pos"], "neg": d.get("neg") or self.neutral})
         return {w: {n: self.score(self.word_vec(w), a) for n, a in axes.items()} for w in words}
 
     # ---- analogy

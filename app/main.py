@@ -5,11 +5,18 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .embeddings import AXES, NEUTRAL, available_models, get_lens as _get_lens
+from .embeddings import available_models, get_lens as _get_lens
 from .models import DEFAULT_MODEL
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
+import time
+
+import psutil
+
 app = FastAPI(title="Token Lens")
+_proc = psutil.Process()
+_proc.cpu_percent(None)  # prime so the next call measures since this point
+psutil.cpu_percent(None)
 
 
 def get_lens(model: str = DEFAULT_MODEL):
@@ -24,10 +31,21 @@ def healthz():
     return {"status": "ok"}
 
 
+@app.get("/api/stats")
+def stats():
+    """Live server resource usage (polled by the UI)."""
+    vm = psutil.virtual_memory()
+    mi = _proc.memory_full_info() if hasattr(_proc, "memory_full_info") else _proc.memory_info()
+    return {"t": time.time(), "cpu_proc": _proc.cpu_percent(None), "cpu_sys": psutil.cpu_percent(None),
+            "cpus": psutil.cpu_count(), "rss_mb": mi.rss / 2**20,
+            "mem_used_mb": (vm.total - vm.available) / 2**20, "mem_total_mb": vm.total / 2**20,
+            "mem_pct": vm.percent, "models_loaded": _get_lens.cache_info().currsize}
+
+
 @app.get("/api/meta")
 def meta(model: str = DEFAULT_MODEL):
     L = get_lens(model)
-    return {**L.meta, "axes": AXES, "neutral": NEUTRAL}
+    return {**L.meta, "axes": L.axes, "neutral": L.neutral}
 
 
 @app.get("/api/models")

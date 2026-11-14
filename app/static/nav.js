@@ -7,9 +7,9 @@
   window.TL_SETLANG = v => { document.documentElement.lang = v; try { localStorage.setItem("tl-lang", v); } catch (e) {}
     document.dispatchEvent(new CustomEvent("tl-lang", { detail: v })); };
   document.addEventListener("DOMContentLoaded", () => {
-    const b = document.getElementById("langbtn");
-    if (b) { const sync = () => b.textContent = TL_LANG() === "en" ? "TR" : "EN";
-      b.onclick = () => { TL_SETLANG(TL_LANG() === "en" ? "tr" : "en"); sync(); }; sync(); }
+    const btns = document.querySelectorAll(".flags button");
+    const sync = () => btns.forEach(x => x.setAttribute("aria-pressed", String(x.dataset.l === TL_LANG())));
+    btns.forEach(x => x.onclick = () => { TL_SETLANG(x.dataset.l); sync(); }); sync();
     const here = location.pathname.replace(/\/$/, "") || "/";
     document.querySelectorAll("nav.top a").forEach(a => { if (a.getAttribute("href") === here) a.classList.add("cur"); });
   });

@@ -5,6 +5,7 @@ const T = { en: { tip: "A leading space is part of the token in GPT-2/Qwen: 'kin
                   tok: "Token", variants: "variants", axis: "cosine with axis", cname: "name", cpos: "positive words, comma-separated", cneg: "negative words (optional)", neutral: "neutral set" },
             tr: { tip: "GPT-2/Qwen'de baştaki boşluk token'ın parçasıdır: 'king' ≠ ' king' (farklı ID ve vektör).",
                   tok: "Token", variants: "varyantlar", axis: "eksenle kosinüs", cname: "ad", cpos: "pozitif kelimeler, virgülle", cneg: "negatif kelimeler (opsiyonel)", neutral: "nötr küme" } };
+const plang = () => (state.meta && state.meta.lang === "tr") ? "tr" : TL_LANG();
 const L = () => T[TL_LANG()] || T.en;
 const state = { tokens: [], sel: null, axes: {}, custom: null, vec: null, model: "gpt2", meta: null };
 try { state.model = localStorage.getItem("tl-model") || "gpt2"; } catch (e) {}
@@ -41,10 +42,13 @@ async function loadModel() {
   $("meta").textContent = `${m.model_id} · ${m.vocab.toLocaleString()} tokens × ${m.dims} dims`;
   const heat = $("heat"); heat.width = m.dims;
   renderAxDefs(); renderPresets(); fillSelectors(Object.keys(state.axes), true);
+  const tr = m.lang === "tr";   // Turkish-only model: switch defaults to Turkish words
+  $("text").value = tr ? "kral kraliçe adam kadın elma" : "king queen man woman apple";
+  [$("a").value, $("b").value, $("c").value] = tr ? ["kral", "adam", "kadın"] : ["king", "man", "woman"];
 }
 function renderPresets() {
   const box = $("presets"); const old = $("variants")?.textContent || ""; box.innerHTML = "";
-  PRESETS[TL_LANG()].forEach(w => { const b = document.createElement("button"); b.textContent = w;
+  PRESETS[plang()].forEach(w => { const b = document.createElement("button"); b.textContent = w;
     b.onclick = () => { $("text").value = $("text").value.trim() ? $("text").value + " " + w : w; run(); }; box.append(b); });
   const s = document.createElement("span"); s.className = "mut"; s.id = "variants"; s.textContent = old; box.append(s);
 }
@@ -112,13 +116,13 @@ async function bars(t) {
 }
 async function plots() {
   const typed = [...new Set($("text").value.split(/\s+/).map(word).filter(Boolean))];
-  const ws = [...new Set([...PRESETS[TL_LANG()], ...typed])].slice(0, 40);
+  const ws = [...new Set([...PRESETS[plang()], ...typed])].slice(0, 40);
   const variants = await j("/api/words?words=" + encodeURIComponent(ws.join(",")));
   const ids = variants.map(v => v.with_space.ids[0]);
   const pts = await j("/api/pca?ids=" + ids.join(","));
   Plotly.react("p3", [{ type: "scatter3d", mode: "markers+text", text: ws, textposition: "top center",
     x: pts.map(p => p.x), y: pts.map(p => p.y), z: pts.map(p => p.z),
-    marker: { size: 4, color: ws.map(w => PRESETS[TL_LANG()].includes(w) ? "#0891b2" : "#d9480f") } }],
+    marker: { size: 4, color: ws.map(w => PRESETS[plang()].includes(w) ? "#0891b2" : "#d9480f") } }],
     { ...layoutBase(), margin: { l: 0, r: 0, t: 0, b: 0 }, scene: { xaxis: { title: "PC1" }, yaxis: { title: "PC2" }, zaxis: { title: "PC3" } } }, { displayModeBar: false });
   state.planeWords = ws; plot2d();
 }
@@ -142,4 +146,27 @@ async function analogy() {
   const r = await j(`/api/analogy?a=${a}&b=${b}&c=${c}&k=10`);
   $("ana").innerHTML = r.map(n => `<tr><td>${vis(n.token)}</td><td>${n.id}</td><td>${n.similarity.toFixed(3)}</td></tr>`).join("");
 }
+
+// ---- live server load
+const hist = { cpu: [], ram: [] }, N = 60;
+function spark(id, a, b, max, c1, c2) {
+  const c = $(id), x = c.getContext("2d"), w = c.width, h = c.height; x.clearRect(0, 0, w, h);
+  [[a, c1], [b, c2]].forEach(([arr, col]) => { x.beginPath(); x.strokeStyle = col; x.lineWidth = 2;
+    arr.forEach((v, i) => { const px = i / (N - 1) * w, py = h - Math.min(1, v / max) * (h - 4) - 2; i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke(); });
+}
+async function poll() {
+  if (document.hidden || !$("stats").open) return;
+  try {
+    const s = await (await fetch("/api/stats")).json();
+    hist.cpu.push([s.cpu_proc, s.cpu_sys]); hist.ram.push([s.rss_mb, s.mem_used_mb]);
+    if (hist.cpu.length > N) { hist.cpu.shift(); hist.ram.shift(); }
+    $("cpuv").textContent = `${s.cpu_proc.toFixed(0)}% / ${s.cpu_sys.toFixed(0)}%`;
+    $("ramv").textContent = `${s.rss_mb.toFixed(0)} MB / ${s.mem_used_mb.toFixed(0)} of ${s.mem_total_mb.toFixed(0)} MB`;
+    const cm = Math.max(100, ...hist.cpu.flat()), rm = s.mem_total_mb;
+    spark("cpuc", hist.cpu.map(v => v[0]), hist.cpu.map(v => v[1]), cm, "#e11d48", "#9a9aa8");
+    spark("ramc", hist.ram.map(v => v[0]), hist.ram.map(v => v[1]), rm, "#e11d48", "#9a9aa8");
+    $("statx").textContent = `${s.cpus} vCPU · models in memory: ${s.models_loaded} · red = process, grey = whole machine · updates every 2 s while this section is open`;
+  } catch (e) {}
+}
+setInterval(poll, 2000);
 document.addEventListener("DOMContentLoaded", init);

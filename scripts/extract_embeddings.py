@@ -47,7 +47,12 @@ def extract(slug: str) -> None:
     cfg = MODELS[slug]
     out = os.path.join(OUT, slug)
     os.makedirs(out, exist_ok=True)
-    shutil.copy(hf_hub_download(cfg["hf"], "tokenizer.json"), os.path.join(out, "tokenizer.json"))
+    if cfg.get("tokenizer") == "wordpiece":  # repo ships only vocab.txt: build a fast tokenizer from it
+        from tokenizers import BertWordPieceTokenizer
+        BertWordPieceTokenizer(hf_hub_download(cfg["hf"], "vocab.txt"), lowercase=False,
+                               strip_accents=False).save(os.path.join(out, "tokenizer.json"))
+    else:
+        shutil.copy(hf_hub_download(cfg["hf"], "tokenizer.json"), os.path.join(out, "tokenizer.json"))
     w = read_tensor(hf_hub_download(cfg["hf"], "model.safetensors"), cfg["tensor"])
     print(slug, "embedding matrix", w.shape)
     np.save(os.path.join(out, "embeddings.f16.npy"), w.astype(np.float16))
@@ -64,7 +69,7 @@ def extract(slug: str) -> None:
     np.save(os.path.join(out, "pca3.npy"), pca.astype(np.float32))
     with open(os.path.join(out, "meta.json"), "w") as fh:
         json.dump({"slug": slug, "model_id": cfg["hf"], "label": cfg["label"],
-                   "tensor": cfg["tensor"], "vocab": w.shape[0], "dims": w.shape[1]}, fh)
+                   "tensor": cfg["tensor"], "lang": cfg.get("lang", "en"), "vocab": w.shape[0], "dims": w.shape[1]}, fh)
     print("done ->", os.path.abspath(out))
 
 

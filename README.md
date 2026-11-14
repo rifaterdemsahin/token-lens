@@ -19,10 +19,10 @@ Text → GPT-2 BPE tokenizer (`tokenizer.json`) → integer **token ID** → tha
 matrix `wte.weight` (50,257 × 768, from `model.safetensors`) → the row is the vector.
 `scripts/extract_embeddings.py` does this once at Docker build time (no PyTorch) and writes
 `data/embeddings.f16.npy`, `pca3.npy`, `tokenizer.json`; the runtime image is offline and memory-maps the matrix.
-Models are registered in `app/models.py` (slug → HF repo + embedding tensor name): GPT-2, Qwen2.5-0.5B, Gemma-3-270m. Pick one in the UI or pass `?model=slug` to any API endpoint. Add a model by adding a registry entry and re-running extraction.
+Models are registered in `app/models.py` (slug → HF repo + embedding tensor name): GPT-2, Qwen2.5-0.5B, Gemma-3-270m and `dbmdz/bert-base-turkish-cased` (Turkish-only vocab; the most Turkish-friendly, with Turkish axis words and presets). Pick one in the UI or pass `?model=slug` to any API endpoint. Add a model by adding a registry entry and re-running extraction.
 
 - **Token IDs are specific to each tokenizer**: GPT-2 `king`=3364, Qwen `king`=10566, Gemma `king`=8971; ID 9246 is `cat` in GPT-2 (not `king`). See the in-app *Models* page.
-- UI is available in English and Turkish (toggle top right). Pages: `/`, `/models`, `/architecture`.
+- UI is available in English and Turkish (flag buttons top right). Pages: `/`, `/models`, `/architecture`.
 - Real token IDs are **arbitrary**: `king` (3364) / ` king` (5822) / ` queen` (16599) are not adjacent.
 - A leading space is part of the token: `king` ≠ ` king`.
 - Learned weights, not database rows. Individual dimensions are unlabeled.
@@ -38,3 +38,7 @@ fly tokens create deploy      # add as FLY_API_TOKEN GitHub secret, then push to
 CI (`.github/workflows/deploy.yml`) runs tests then `flyctl deploy --remote-only`.
 
 > Image size: all three models are baked in (~1 GB of embeddings). Matrices are memory-mapped, so RAM stays within 1 GB. For a smaller image, remove entries from `app/models.py`.
+
+The page shows live server CPU and RAM (`/api/stats`, polled every 2 s while the section is open).
+
+Workflow: single branch (`main`); every change is committed, pushed and deployed.
