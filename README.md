@@ -22,7 +22,7 @@ matrix `wte.weight` (50,257 × 768, from `model.safetensors`) → the row is the
 Models are registered in `app/models.py` (slug → HF repo + embedding tensor name): GPT-2, Qwen2.5-0.5B, Gemma-3-270m and `dbmdz/bert-base-turkish-cased` (Turkish-only vocab; the most Turkish-friendly, with Turkish axis words and presets). Pick one in the UI or pass `?model=slug` to any API endpoint. Add a model by adding a registry entry and re-running extraction.
 
 - **Token IDs are specific to each tokenizer**: GPT-2 `king`=3364, Qwen `king`=10566, Gemma `king`=8971; ID 9246 is `cat` in GPT-2 (not `king`). See the in-app *Models* page.
-- UI is available in English and Turkish (flag buttons top right). Pages: `/`, `/models`, `/architecture`.
+- UI is available in English and Turkish (flag buttons top right). Pages: `/`, `/models`, `/architecture`, `/language-tax` (infographic + measured per-language token counts).
 - Real token IDs are **arbitrary**: `king` (3364) / ` king` (5822) / ` queen` (16599) are not adjacent.
 - A leading space is part of the token: `king` ≠ ` king`.
 - Learned weights, not database rows. Individual dimensions are unlabeled.

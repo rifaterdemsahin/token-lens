@@ -164,6 +164,14 @@ class Lens:
                  "x": float(self.pca[i][0]), "y": float(self.pca[i][1]), "z": float(self.pca[i][2])} for i in ids]
 
 
+@lru_cache(maxsize=8)
+def get_tokenizer(slug: str) -> Tokenizer:
+    """Tokenizer only (no embedding matrix) - cheap, used for token-count comparisons."""
+    if slug not in MODELS:
+        raise KeyError(slug)
+    return Tokenizer.from_file(os.path.join(DATA_ROOT, slug, "tokenizer.json"))
+
+
 @lru_cache(maxsize=3)
 def get_lens(slug: str = DEFAULT_MODEL) -> Lens:
     if slug not in MODELS or not os.path.exists(os.path.join(DATA_ROOT, slug, "meta.json")):

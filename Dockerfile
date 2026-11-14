@@ -1,7 +1,7 @@
 # ---- stage 1: download model assets and extract embeddings for every model in app/models.py (needs network)
 FROM python:3.12-slim AS builder
 ENV DATA_DIR=/data HF_HOME=/tmp/hf
-RUN pip install --no-cache-dir huggingface_hub==0.27.0 numpy==2.2.1
+RUN pip install --no-cache-dir huggingface_hub==0.27.0 numpy==2.2.1 tokenizers==0.21.0
 WORKDIR /work
 COPY app/__init__.py app/models.py app/
 COPY scripts scripts

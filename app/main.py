@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .embeddings import available_models, get_lens as _get_lens
+from .embeddings import available_models, get_tokenizer, get_lens as _get_lens
 from .models import DEFAULT_MODEL
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
@@ -40,6 +40,47 @@ def stats():
             "cpus": psutil.cpu_count(), "rss_mb": mi.rss / 2**20,
             "mem_used_mb": (vm.total - vm.available) / 2**20, "mem_total_mb": vm.total / 2**20,
             "mem_pct": vm.percent, "models_loaded": _get_lens.cache_info().currsize}
+
+
+SENTENCES = {  # the same sentence in 11 languages (hand-written parallel text)
+    "en": ("English", "Hello, my name is Sarah and I would like to order two coffees, please."),
+    "es": ("Spanish", "Hola, me llamo Sarah y me gustaría pedir dos cafés, por favor."),
+    "tr": ("Turkish", "Merhaba, benim adım Sarah ve iki kahve sipariş etmek istiyorum, lütfen."),
+    "ko": ("Korean", "안녕하세요, 제 이름은 사라입니다. 커피 두 잔을 주문하고 싶습니다."),
+    "ja": ("Japanese", "こんにちは、サラです。コーヒーを二つ注文したいのですが、お願いします。"),
+    "zh": ("Chinese", "你好，我叫莎拉，我想点两杯咖啡，谢谢。"),
+    "ru": ("Russian", "Здравствуйте, меня зовут Сара, и я хотела бы заказать два кофе, пожалуйста."),
+    "el": ("Greek", "Γεια σας, με λένε Σάρα και θα ήθελα να παραγγείλω δύο καφέδες, παρακαλώ."),
+    "hi": ("Hindi", "नमस्ते, मेरा नाम सारा है और मैं दो कॉफ़ी ऑर्डर करना चाहती हूँ, कृपया।"),
+    "bn": ("Bengali", "হ্যালো, আমার নাম সারা এবং আমি দুটি কফি অর্ডার করতে চাই, দয়া করে।"),
+    "th": ("Thai", "สวัสดี ฉันชื่อซาร่า ฉันอยากสั่งกาแฟสองแก้ว ค่ะ"),
+}
+
+
+@app.get("/api/language-tax")
+def language_tax():
+    """Token counts for the same sentence per language per model, relative to English."""
+    models = available_models()
+    toks = {m["slug"]: get_tokenizer(m["slug"]) for m in models}
+    rows = []
+    for code, (name, text) in SENTENCES.items():
+        row = {"code": code, "language": name, "text": text, "chars": len(text),
+               "bytes": len(text.encode("utf-8")), "models": {}}
+        for slug, t in toks.items():
+            enc = t.encode(text, add_special_tokens=False)
+            row["models"][slug] = {"tokens": len(enc.ids),
+                                   "unk": sum(1 for x in enc.tokens if x in ("[UNK]", "<unk>"))}
+        rows.append(row)
+    en = rows[0]["models"]
+    for r in rows:
+        for slug, v in r["models"].items():
+            v["ratio"] = v["tokens"] / en[slug]["tokens"]
+    return {"models": models, "rows": rows}
+
+
+@app.get("/language-tax")
+def language_tax_page():
+    return FileResponse(os.path.join(STATIC, "language-tax.html"))
 
 
 @app.get("/api/meta")

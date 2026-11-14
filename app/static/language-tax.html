@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Lens · Language tax</title><link rel="stylesheet" href="/static/site.css"><script src="/static/nav.js"></script>
+<style>.bar{height:14px;border-radius:3px;background:var(--c-axes);min-width:2px}.bar.hi{background:var(--c-stats)}
+img.info{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--bd);display:block;margin:0 auto}td.n{text-align:right}</style></head>
+<body><nav class="top"><a href="/">Token Lens</a><a href="/models"><span lang="en">Models</span><span lang="tr">Modeller</span></a><a href="/architecture"><span lang="en">Architecture</span><span lang="tr">Mimari</span></a><a href="/language-tax"><span lang="en">Language tax</span><span lang="tr">Dil vergisi</span></a><span class="sp"></span><span class="flags" role="group" aria-label="language"><button data-l="en" title="English" aria-label="English">🇬🇧</button><button data-l="tr" title="Türkçe" aria-label="Türkçe">🇹🇷</button></span></nav><main>
+<h1><span lang="en">The hidden language tax</span><span lang="tr">Gizli dil vergisi</span></h1>
+
+<details class="sec s-stats" open><summary><span lang="en">The picture</span><span lang="tr">Görsel</span></summary><div class="body">
+<img class="info" src="/static/language-tax.jpg" alt="Infographic: The Hidden Language Tax in AI - why non-English queries cost more in LLMs" width="765" height="1024">
+<p class="mut" lang="en">The multipliers in the infographic (Spanish 1.5×, Russian 2.5×, Hindi 4–5×, Greek 6×…) are rough, illustrative figures. The section below measures the real thing with the tokenizers in this app.</p>
+<p class="mut" lang="tr">İnfografikteki çarpanlar (İspanyolca 1,5×, Rusça 2,5×, Hintçe 4–5×, Yunanca 6×…) kabaca, örnekleyici değerlerdir. Aşağıdaki bölüm, bu uygulamadaki tokenizer'larla gerçek değerleri ölçer.</p>
+</div></details>
+
+<details class="sec s-token" open><summary><span lang="en">Why it happens</span><span lang="tr">Neden olur</span></summary><div class="body">
+<p lang="en">Models are billed and limited by <b>tokens</b>, not words. A tokenizer's vocabulary is learned mostly from English text, so English words are often one token while the same meaning in another language is split into many fragments. Non-Latin scripts also need 2–3 bytes per character in UTF-8, and byte-level tokenizers (GPT-2, Qwen) may split a single character into several byte tokens.</p>
+<p lang="tr">Modeller kelimeyle değil <b>token</b> ile ücretlendirilir ve sınırlanır. Tokenizer sözlüğü çoğunlukla İngilizce metinden öğrenilir; bu yüzden İngilizce kelimeler çoğu zaman tek token iken aynı anlam başka dillerde çok parçaya bölünür. Latin dışı alfabeler UTF-8'de karakter başına 2-3 bayt gerektirir ve bayt düzeyindeki tokenizer'lar (GPT-2, Qwen) tek bir karakteri birkaç bayt token'ına bölebilir.</p>
+</div></details>
+
+<details class="sec s-axes" open><summary><span lang="en">Measured: the same sentence in 11 languages</span><span lang="tr">Ölçüm: aynı cümle 11 dilde</span></summary><div class="body">
+<div class="row"><label><span lang="en">Model</span><span lang="tr">Model</span> <select id="m"></select></label></div>
+<div style="overflow-x:auto"><table id="t"></table></div>
+<p class="mut" lang="en">ratio = tokens ÷ English tokens for the same model. Bars show the ratio; red = 2× or more. “UNK” = characters the vocabulary cannot represent at all (the Turkish-only BERT has no Hindi, Thai, …).</p>
+<p class="mut" lang="tr">oran = aynı modelde token sayısı ÷ İngilizce token sayısı. Çubuklar oranı gösterir; kırmızı = 2× veya fazlası. “UNK” = sözlüğün hiç gösteremediği karakterler (yalnızca Türkçe BERT'te Hintçe, Tayca vb. yoktur).</p>
+</div></details>
+
+<details class="sec s-ana" open><summary><span lang="en">Effects</span><span lang="tr">Etkiler</span></summary><div class="body">
+<p lang="en"><b>Cost:</b> price scales with tokens, so a 4× token count means roughly a 4× bill for the same conversation. <b>Memory:</b> the context window is counted in tokens, so the same window holds far less text in Hindi or Greek than in English. <b>Quality:</b> heavily fragmented words give the model less to work with. <b>Turkish:</b> multilingual models (Qwen, Gemma) handle it far better than GPT-2, and the Turkish BERT represents Turkish words almost whole, as the table shows.</p>
+<p lang="tr"><b>Maliyet:</b> fiyat token sayısıyla orantılıdır; 4× token yaklaşık 4× fatura demektir. <b>Bellek:</b> bağlam penceresi token ile sayılır; aynı pencere Hintçe veya Yunancada İngilizceden çok daha az metin taşır. <b>Kalite:</b> aşırı parçalanan kelimeler modele daha az bilgi verir. <b>Türkçe:</b> çok dilli modeller (Qwen, Gemma) GPT-2'den çok daha iyidir; Türkçe BERT ise tabloda görüldüğü gibi Türkçe kelimeleri neredeyse bütün olarak temsil eder.</p>
+<div class="callout"><span lang="en"><b>Reading the table:</b> the tax depends on the tokenizer, not the language alone. GPT-2 (50k vocab, English-heavy) charges the most; Gemma's 262k multilingual vocabulary almost removes it for these sentences. For the Turkish-only BERT, English is itself split into many pieces and non-Turkish scripts become UNK, so its ratios are not a fair “tax” measure. One short sentence per language is a small sample.</span>
+<span lang="tr"><b>Tabloyu okuma:</b> vergi yalnızca dile değil tokenizer'a bağlıdır. GPT-2 (50 bin sözlük, İngilizce ağırlıklı) en çok vergi uygular; Gemma'nın 262 bin çok dilli sözlüğü bu cümlelerde vergiyi neredeyse ortadan kaldırır. Yalnızca Türkçe BERT'te İngilizce kendisi çok parçaya bölünür ve Türkçe dışı yazılar UNK olur; bu yüzden oranları adil bir “vergi” ölçüsü değildir. Dil başına tek kısa cümle küçük bir örneklemdir.</span></div>
+</div></details>
+</main>
+<script>
+(async()=>{
+  const d=await (await fetch("/api/language-tax")).json();
+  const sel=document.getElementById("m"); sel.innerHTML=d.models.map(m=>`<option value="${m.slug}">${m.label}</option>`).join("");
+  const draw=()=>{const s=sel.value, max=Math.max(...d.rows.map(r=>r.models[s].ratio));
+    document.getElementById("t").innerHTML="<tr><th>language</th><th>sentence</th><th>chars</th><th>bytes</th><th>tokens</th><th>ratio</th><th></th><th>UNK</th></tr>"+
+    d.rows.map(r=>{const v=r.models[s];return `<tr><td>${r.language}</td><td style="font-family:system-ui;max-width:380px">${r.text}</td><td class="n">${r.chars}</td><td class="n">${r.bytes}</td><td class="n">${v.tokens}</td><td class="n"><b>${v.ratio.toFixed(1)}×</b></td><td style="width:22%"><div class="bar ${v.ratio>=2?"hi":""}" style="width:${v.ratio/max*100}%"></div></td><td class="n">${v.unk||""}</td></tr>`}).join("");};
+  sel.onchange=draw; draw();
+})();
+</script></body></html>

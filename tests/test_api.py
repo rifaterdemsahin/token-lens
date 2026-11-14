@@ -98,3 +98,12 @@ def test_turkish_model():
     assert min(s[f]["Fruit"] for f in ("elma", "armut", "üzüm")) > max(s["kral"]["Fruit"], s["kraliçe"]["Fruit"]) + 0.1
     r = c.get("/api/analogy", params={"a": "kral", "b": "adam", "c": "kadın", "k": 5, "model": "bert-turkish"}).json()
     assert any(x["token"].lower().startswith("kraliçe") for x in r)
+
+
+def test_language_tax():
+    r = c.get("/api/language-tax").json()
+    en = next(x for x in r["rows"] if x["code"] == "en")
+    hi = next(x for x in r["rows"] if x["code"] == "hi")
+    assert en["models"]["gpt2"]["ratio"] == 1.0
+    assert hi["models"]["gpt2"]["tokens"] > 2 * en["models"]["gpt2"]["tokens"]
+    assert c.get("/language-tax").status_code == 200 and c.get("/static/language-tax.jpg").status_code == 200
