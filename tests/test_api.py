@@ -9,7 +9,7 @@ from app.main import app  # noqa: E402
 
 DATA = os.path.join(os.path.dirname(__file__), "..", "data")
 c = TestClient(app)
-tok = Tokenizer.from_file(os.path.join(DATA, "tokenizer.json"))
+tok = Tokenizer.from_file(os.path.join(DATA, "gpt2", "tokenizer.json"))
 
 
 def test_healthz():
@@ -58,3 +58,24 @@ def test_fruit_axis():
 def test_pca_and_bad_id():
     assert len(c.get("/api/pca?ids=5822,14710").json()) == 2
     assert c.get("/api/token/999999").status_code == 404
+
+
+def test_models_listed():
+    r = c.get("/api/models").json()
+    assert r["default"] == "gpt2" and any(m["slug"] == "gpt2" for m in r["models"])
+
+
+def test_unknown_model_404():
+    assert c.get("/api/tokenize", params={"text": "a", "model": "nope"}).status_code == 404
+
+
+def test_same_id_differs_across_models():
+    # id 9246 is 'cat' in GPT-2, not 'king' - IDs are tokenizer-specific.
+    assert c.get("/api/token/9246").json()["token"] == "cat"
+    slugs = {m["slug"] for m in c.get("/api/models").json()["models"]}
+    if "qwen2.5-0.5b" not in slugs:
+        pytest.skip("qwen data not extracted")
+    q = c.get("/api/tokenize", params={"text": "king", "model": "qwen2.5-0.5b"}).json()
+    assert q[0]["token_id"] == 10566 != 3364
+    g = c.get("/api/token/10566", params={"model": "qwen2.5-0.5b"}).json()
+    assert g["dims"] == 896 and len(g["vector"]) == 896

@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements-dev.txt
-      - run: python scripts/extract_embeddings.py
+      - run: python scripts/extract_embeddings.py gpt2
       - run: pytest -q tests
   deploy:
     needs: test

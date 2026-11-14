@@ -1,11 +1,11 @@
-# ---- stage 1: download model assets and extract embeddings (needs network)
+# ---- stage 1: download model assets and extract embeddings for every model in app/models.py (needs network)
 FROM python:3.12-slim AS builder
-ARG MODEL_ID=openai-community/gpt2
-ARG EMBED_TENSOR=wte.weight
-ENV MODEL_ID=${MODEL_ID} EMBED_TENSOR=${EMBED_TENSOR} DATA_DIR=/data HF_HOME=/tmp/hf
-RUN pip install --no-cache-dir huggingface_hub==0.27.0 safetensors==0.5.0 numpy==2.2.1
-COPY scripts/extract_embeddings.py /scripts/extract_embeddings.py
-RUN python /scripts/extract_embeddings.py
+ENV DATA_DIR=/data HF_HOME=/tmp/hf
+RUN pip install --no-cache-dir huggingface_hub==0.27.0 numpy==2.2.1
+WORKDIR /work
+COPY app/__init__.py app/models.py app/
+COPY scripts scripts
+RUN python scripts/extract_embeddings.py
 
 # ---- stage 2: slim, fully offline runtime
 FROM python:3.12-slim

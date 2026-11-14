@@ -1,74 +1,51 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Lens</title>
-<style>
-:root{--bg:#fafafa;--fg:#1a1a1f;--card:#fff;--bd:#dcdce2;--mut:#6b6b78;--acc:#4f46e5;--pos:#d9480f;--neg:#1c7ed6}
-@media (prefers-color-scheme:dark){:root{--bg:#121216;--fg:#ececf1;--card:#1b1b21;--bd:#33333c;--mut:#9a9aa8;--acc:#818cf8;--pos:#ff8c5a;--neg:#5aa9ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:16px}h1{margin:.2em 0}h2{font-size:1.05rem;margin:0 0 8px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin:12px 0}
-.grid{display:grid;gap:12px;grid-template-columns:1fr 1fr}@media(max-width:800px){.grid{grid-template-columns:1fr}}
-input,select,button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 10px}
-input[type=text]{width:100%}button{cursor:pointer}button:hover{border-color:var(--acc)}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
-.chip{border:1px solid var(--bd);border-radius:8px;padding:4px 8px;cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;background:var(--card)}
-.chip.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}.chip b{font-family:monospace;white-space:pre}.chip small{color:var(--mut)}
-.big{font:600 1.15rem ui-monospace,monospace;word-break:break-all}.mut{color:var(--mut);font-size:.85rem}
-#heat{display:block;width:100%;height:46px;image-rendering:pixelated;border-radius:4px}
-table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--bd);padding:2px 6px;text-align:left;font-family:monospace;font-size:.85rem}
-.plot{width:100%;height:420px}.tip{border-bottom:1px dotted var(--mut);cursor:help}
-code{background:var(--bg);padding:1px 4px;border-radius:4px}
-</style>
-</head>
-<body>
-<main>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Lens</title><link rel="stylesheet" href="/static/site.css"><script src="/static/nav.js"></script></head>
+<body><nav class="top"><a href="/">Token Lens</a><a href="/models"><span lang="en">Models</span><span lang="tr">Modeller</span></a><a href="/architecture"><span lang="en">Architecture</span><span lang="tr">Mimari</span></a><span class="sp"></span><button id="langbtn" aria-label="language">TR</button></nav><main>
 <h1>Token Lens</h1>
-<p class="mut">Real GPT-2 token IDs and embedding vectors (<span id="meta">loading…</span>).
- <span class="tip" title="GPT-2's BPE tokenizer treats a leading space as part of the token. 'king' (no space, start of text) and ' king' (after a space, mid-sentence) are different tokens with different IDs and different vectors.">Why do “king” and “ king” differ?</span></p>
+<p class="mut"><span id="meta">…</span> ·
+ <span class="tip" id="tip" title="">?</span></p>
 
-<div class="card">
-  <div class="row"><input type="text" id="text" value="king queen man woman apple" aria-label="text to tokenize"></div>
+<details class="sec s-input" open><summary><span lang="en">1 · Type text, pick a model</span><span lang="tr">1 · Metin yazın, model seçin</span></summary><div class="body">
+  <div class="row"><label><span lang="en">Model</span><span lang="tr">Model</span> <select id="model"></select></label></div>
+  <div class="row"><input type="text" id="text" value="king queen man woman apple" aria-label="text"></div>
   <div class="row" id="presets"></div>
   <div id="chips" class="row"></div>
-</div>
+</div></details>
 
-<div class="card" id="panel" hidden>
+<details class="sec s-token" open id="panel" hidden><summary><span lang="en">2 · Selected token</span><span lang="tr">2 · Seçili token</span></summary><div class="body">
   <div class="big" id="big"></div>
-  <p class="mut">Heatmap of all 768 dimensions (blue = negative, red = positive). Hover for dim index and value.</p>
-  <canvas id="heat" width="768" height="1"></canvas><div class="mut" id="hover">&nbsp;</div>
+  <p class="mut"><span lang="en">Heatmap of every dimension (blue = negative, red = positive). Hover for index and value.</span><span lang="tr">Tüm boyutların ısı haritası (mavi = negatif, kırmızı = pozitif). İndeks ve değer için üzerine gelin.</span></p>
+  <canvas id="heat" width="1" height="1"></canvas><div class="mut" id="hover">&nbsp;</div>
   <div class="grid">
-    <div><h2>First 16 values</h2><table id="vals"></table>
-      <div class="row"><button id="copy">Copy full vector as JSON</button><span class="mut" id="norm"></span></div></div>
-    <div><h2>Nearest neighbors (cosine)</h2><table id="nn"></table></div>
+    <div><h3><span lang="en">First 16 values</span><span lang="tr">İlk 16 değer</span></h3><table id="vals"></table>
+      <div class="row"><button id="copy"><span lang="en">Copy full vector as JSON</span><span lang="tr">Vektörü JSON olarak kopyala</span></button><span class="mut" id="norm"></span></div></div>
+    <div><h3><span lang="en">Nearest neighbors (cosine)</span><span lang="tr">En yakın komşular (kosinüs)</span></h3><table id="nn"></table></div>
   </div>
-  <h2 style="margin-top:12px">Named axes</h2><div id="bars" class="plot" style="height:300px"></div>
-</div>
+</div></details>
 
-<div class="card"><h2>Concept axes (derived from real vectors)</h2>
+<details class="sec s-axes" open><summary><span lang="en">3 · Named axes (derived from real vectors)</span><span lang="tr">3 · Adlandırılmış eksenler (gerçek vektörlerden türetilir)</span></summary><div class="body">
+  <div id="bars" class="plot" style="height:300px"></div>
   <div id="axdefs" class="mut"></div>
-  <div class="row"><b>Add custom axis:</b>
+  <div class="row"><b><span lang="en">Add custom axis:</span><span lang="tr">Özel eksen ekle:</span></b>
     <input id="cname" placeholder="name" size="10"><input id="cpos" placeholder="positive words, comma-separated" size="26">
-    <input id="cneg" placeholder="negative words (optional)" size="22"><button id="cadd">Add</button></div>
-</div>
+    <input id="cneg" placeholder="negative words (optional)" size="22"><button id="cadd">+</button></div>
+</div></details>
 
-<div class="grid">
-  <div class="card"><h2>3D PCA map</h2><div id="p3" class="plot"></div></div>
-  <div class="card"><h2>2D concept plane</h2>
+<details class="sec s-maps" open><summary><span lang="en">4 · Maps</span><span lang="tr">4 · Haritalar</span></summary><div class="body"><div class="grid">
+  <div><h3>3D PCA</h3><div id="p3" class="plot"></div></div>
+  <div><h3><span lang="en">2D concept plane</span><span lang="tr">2B kavram düzlemi</span></h3>
     <div class="row">X <select id="ax"></select> Y <select id="ay"></select></div><div id="p2" class="plot"></div></div>
-</div>
+</div></div></details>
 
-<div class="card"><h2>Analogy</h2>
+<details class="sec s-ana" open><summary><span lang="en">5 · Analogy</span><span lang="tr">5 · Analoji</span></summary><div class="body">
   <div class="row"><input id="a" value="king" size="8"> − <input id="b" value="man" size="8"> + <input id="c" value="woman" size="8">
-  <button id="go">=</button></div><table id="ana"></table></div>
+  <button id="go">=</button></div><table id="ana"></table></div></details>
 
-<div class="card"><h2>About the numbers</h2>
-<p>Text → <b>tokenizer vocabulary</b> (byte-pair encoding) → an integer <b>token ID</b> → that ID is a <b>row index</b> into GPT-2's embedding matrix <code>wte.weight</code> (50,257 × 768) → the 768 numbers in that row are the token's vector.</p>
-<p>These are <b>learned weights</b>, not database rows someone typed in. IDs are arbitrary (“king” and “queen” are not adjacent). Individual dimensions have no human-readable label.</p>
-<p>The Royalty / Femininity / Fruit / Power numbers are <b>derived</b>: each axis is a direction built from word pairs (e.g. Femininity = mean of queen−king, woman−man, …), normalised; the score is the cosine between a token's vector and that direction. The pairs are shown above.</p></div>
+<details class="sec s-about"><summary><span lang="en">About the numbers</span><span lang="tr">Sayılar hakkında</span></summary><div class="body">
+<p lang="en">Text → <b>tokenizer vocabulary</b> → integer <b>token ID</b> → row index into the model's embedding matrix → that row is the vector. These are learned weights, not database rows. IDs are arbitrary and <b>specific to each model's tokenizer</b> (see <a href="/models">Models</a>). The axis scores are derived: each axis is a direction built from word pairs (shown above); the score is the cosine between a token's vector and that direction.</p>
+<p lang="tr">Metin → <b>tokenizer sözlüğü</b> → tamsayı <b>token ID</b> → modelin embedding matrisindeki satır indeksi → o satır vektördür. Bunlar öğrenilmiş ağırlıklardır, veritabanı satırı değil. ID'ler rastgeledir ve <b>her modelin tokenizer'ına özeldir</b> (bkz. <a href="/models">Modeller</a>). Eksen skorları türetilmiştir: her eksen kelime çiftlerinden oluşan bir yöndür (yukarıda gösterilir); skor, token vektörü ile bu yön arasındaki kosinüstür.</p>
+<p lang="tr" class="mut">Not: Türkçe için çok dilli modelleri (Qwen, Gemma) seçin; eksenler İngilizce kelimelerle tanımlıdır.</p></div></details>
 </main>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/app.js"></script>
-</body></html>
+<script src="/static/app.js"></script></body></html>

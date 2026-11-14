@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Lens · Architecture</title><link rel="stylesheet" href="/static/site.css"><script src="/static/nav.js"></script></head>
+<body><nav class="top"><a href="/">Token Lens</a><a href="/models"><span lang="en">Models</span><span lang="tr">Modeller</span></a><a href="/architecture"><span lang="en">Architecture</span><span lang="tr">Mimari</span></a><span class="sp"></span><button id="langbtn" aria-label="language">TR</button></nav><main>
+<h1><span lang="en">Architecture</span><span lang="tr">Mimari</span></h1>
+
+<details class="sec s-arch" open><summary><span lang="en">Overview</span><span lang="tr">Genel bakış</span></summary><div class="body">
+<svg viewBox="0 0 880 300" width="100%" role="img" aria-label="architecture diagram">
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#888"/></marker></defs>
+<text x="10" y="18" style="font-weight:700">Build time (Docker stage 1)</text>
+<rect class="box" x="10" y="28" width="150" height="56" rx="8"/><text x="22" y="52">Hugging Face</text><text x="22" y="70">tokenizer + safetensors</text>
+<rect class="box" x="230" y="28" width="190" height="56" rx="8"/><text x="242" y="52">extract_embeddings.py</text><text x="242" y="70">bf16→f16, PCA(3)</text>
+<rect class="box" x="490" y="28" width="190" height="56" rx="8"/><text x="502" y="52">data/&lt;model&gt;/</text><text x="502" y="70">embeddings.f16.npy, pca3, tokenizer</text>
+<path class="arr" d="M160 56H228" marker-end="url(#a)"/><path class="arr" d="M420 56H488" marker-end="url(#a)"/>
+<path class="arr" d="M585 84V130" marker-end="url(#a)"/><text x="595" y="112">COPY into runtime image</text>
+<text x="10" y="150" style="font-weight:700">Runtime (Fly.io machine, offline, 1 GB)</text>
+<rect class="box" x="10" y="160" width="190" height="64" rx="8"/><text x="22" y="184">Browser</text><text x="22" y="202">index.html + app.js + Plotly</text>
+<rect class="box" x="290" y="160" width="190" height="64" rx="8"/><text x="302" y="184">FastAPI (uvicorn :8080)</text><text x="302" y="202">/api/* + static pages</text>
+<rect class="box" x="570" y="160" width="190" height="64" rx="8"/><text x="582" y="184">embeddings.py (Lens)</text><text x="582" y="202">tokenizer + mmap matrix</text>
+<path class="arr" d="M200 192H288" marker-end="url(#a)"/><path class="arr" d="M480 192H568" marker-end="url(#a)"/>
+<text x="10" y="256">GitHub Actions: test → flyctl deploy --remote-only (FLY_API_TOKEN from Azure Key Vault)</text>
+<text x="10" y="276">Fly: auto-stop when idle, auto-start on request, health check /healthz</text></svg>
+</div></details>
+
+<details class="sec s-token" open><summary><span lang="en">Build time: extraction</span><span lang="tr">Derleme zamanı: çıkarma</span></summary><div class="body">
+<p lang="en"><code>scripts/extract_embeddings.py</code> runs inside the Docker build for every model in <code>app/models.py</code>. It downloads <code>tokenizer.json</code> and <code>model.safetensors</code>, parses the safetensors container directly (so bf16 weights work without PyTorch), keeps only the embedding matrix as float16, and computes a 3-component PCA over the whole vocabulary. The runtime image never touches the network.</p>
+<p lang="tr"><code>scripts/extract_embeddings.py</code>, <code>app/models.py</code> içindeki her model için Docker derlemesi sırasında çalışır. <code>tokenizer.json</code> ve <code>model.safetensors</code> dosyalarını indirir, safetensors kapsayıcısını doğrudan okur (bf16 ağırlıklar PyTorch olmadan çalışır), yalnızca embedding matrisini float16 olarak saklar ve tüm sözlük için 3 bileşenli PCA hesaplar. Çalışma zamanı imajı ağa hiç bağlanmaz.</p>
+</div></details>
+
+<details class="sec s-axes" open><summary><span lang="en">Runtime: API and Lens</span><span lang="tr">Çalışma zamanı: API ve Lens</span></summary><div class="body">
+<p lang="en"><code>app/embeddings.py</code> loads a model lazily (<code>lru_cache</code>), memory-maps <code>embeddings.f16.npy</code> so RAM stays low, and implements tokenization, cosine neighbours (chunked matrix–vector product), analogies (<code>a − b + c</code>, inputs excluded), PCA lookup and concept axes. Every endpoint takes <code>?model=</code>; the default is GPT-2.</p>
+<p lang="tr"><code>app/embeddings.py</code> modeli ihtiyaç anında yükler (<code>lru_cache</code>), RAM'i düşük tutmak için <code>embeddings.f16.npy</code> dosyasını bellek eşlemesiyle açar; tokenizasyon, kosinüs komşuları, analojiler (<code>a − b + c</code>), PCA ve kavram eksenlerini uygular. Her uç nokta <code>?model=</code> alır; varsayılan GPT-2'dir.</p>
+<table><tr><th>endpoint</th><th></th></tr>
+<tr><td>/api/models, /api/meta</td><td>models, dims, axis definitions</td></tr>
+<tr><td>/api/tokenize, /api/words</td><td>text → tokens, IDs, space variants</td></tr>
+<tr><td>/api/token/{id}</td><td>768+ dim vector, norm</td></tr>
+<tr><td>/api/neighbors/{id}</td><td>top-k cosine</td></tr>
+<tr><td>/api/axes, /api/analogy, /api/pca</td><td>derived views</td></tr>
+<tr><td>/healthz</td><td>Fly health check</td></tr></table>
+</div></details>
+
+<details class="sec s-maps"><summary><span lang="en">Concept axes</span><span lang="tr">Kavram eksenleri</span></summary><div class="body">
+<p lang="en">No embedding dimension is labelled. Each axis (Royalty, Femininity, Fruit, Power) is a unit vector built from the mean of word-pair differences, e.g. Femininity = mean(queen−king, woman−man, she−he, girl−boy). A token's score is the cosine between its vector and the axis, so values are comparable across tokens.</p>
+<p lang="tr">Hiçbir embedding boyutunun etiketi yoktur. Her eksen (Krallık, Dişilik, Meyve, Güç) kelime çifti farklarının ortalamasından oluşan birim vektördür; örn. Dişilik = ort(queen−king, woman−man, she−he, girl−boy). Skor, token vektörü ile eksen arasındaki kosinüstür.</p>
+</div></details>
+
+<details class="sec s-ana"><summary><span lang="en">Frontend</span><span lang="tr">Arayüz</span></summary><div class="body">
+<p lang="en">Static HTML + vanilla JS + Plotly (pinned CDN version); no build step. Pages: <a href="/">Token Lens</a>, <a href="/models">Models</a>, this page. Language (EN/TR) and model choice are remembered in the browser. Sections are collapsible <code>&lt;details&gt;</code> blocks.</p>
+<p lang="tr">Statik HTML + saf JS + Plotly (sabitlenmiş CDN sürümü); derleme adımı yok. Sayfalar: <a href="/">Token Lens</a>, <a href="/models">Modeller</a>, bu sayfa. Dil (EN/TR) ve model seçimi tarayıcıda hatırlanır. Bölümler açılıp kapanan <code>&lt;details&gt;</code> bloklarıdır.</p>
+</div></details>
+
+<details class="sec s-about"><summary><span lang="en">Deployment and secrets</span><span lang="tr">Dağıtım ve gizli bilgiler</span></summary><div class="body">
+<p lang="en">One container, <code>python:3.12-slim</code>, multi-stage. Fly.io <code>shared-cpu-1x</code>, 1 GB, region lhr, scale-to-zero. The Fly deploy token is kept in Azure Key Vault and exported only as an environment variable at deploy time. Trade-off: all three models are baked into the image, so it is larger than a GPT-2-only build; matrices are memory-mapped so RAM stays within 1 GB.</p>
+<p lang="tr">Tek konteyner, <code>python:3.12-slim</code>, çok aşamalı. Fly.io <code>shared-cpu-1x</code>, 1 GB, lhr bölgesi, sıfıra ölçekleme. Fly dağıtım token'ı Azure Key Vault'ta tutulur ve yalnızca dağıtım sırasında ortam değişkeni olarak verilir. Ödünleşim: üç model de imaja gömülüdür, bu yüzden yalnızca GPT-2 içeren sürümden büyüktür; matrisler bellek eşlemeli olduğundan RAM 1 GB içinde kalır.</p>
+</div></details>
+</main></body></html>

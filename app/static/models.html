@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Lens · Models</title><link rel="stylesheet" href="/static/site.css"><script src="/static/nav.js"></script></head>
+<body><nav class="top"><a href="/">Token Lens</a><a href="/models"><span lang="en">Models</span><span lang="tr">Modeller</span></a><a href="/architecture"><span lang="en">Architecture</span><span lang="tr">Mimari</span></a><span class="sp"></span><button id="langbtn" aria-label="language">TR</button></nav><main>
+<h1><span lang="en">Models and token IDs</span><span lang="tr">Modeller ve token ID'leri</span></h1>
+
+<details class="sec s-models" open><summary><span lang="en">A token ID belongs to one tokenizer</span><span lang="tr">Bir token ID'si tek bir tokenizer'a aittir</span></summary><div class="body">
+<p lang="en">A token ID is just a row number in <em>one model's</em> vocabulary. Each model family trains its own tokenizer, so the same text gets different IDs, and the same ID is a different piece of text. There is no universal ID for "king".</p>
+<p lang="tr">Token ID'si yalnızca <em>tek bir modelin</em> sözlüğündeki satır numarasıdır. Her model ailesi kendi tokenizer'ını eğitir; bu yüzden aynı metin farklı ID alır ve aynı ID farklı bir metin parçasıdır. "king" için evrensel bir ID yoktur.</p>
+<div class="callout"><span lang="en"><b>Common mix-up:</b> you may see "king = 9246" quoted as a GPT-2 fact. We checked the real GPT-2 tokenizer: <code>king</code> = 3364, <code> king</code> (with a leading space) = 5822, and 9246 is <code>cat</code>. Always verify an ID against the actual tokenizer.</span>
+<span lang="tr"><b>Sık karışıklık:</b> "king = 9246" bazen GPT-2 bilgisi olarak aktarılır. Gerçek GPT-2 tokenizer'ında kontrol ettik: <code>king</code> = 3364, <code> king</code> (başında boşlukla) = 5822 ve 9246 aslında <code>cat</code>. ID'leri her zaman gerçek tokenizer'la doğrulayın.</span></div>
+</div></details>
+
+<details class="sec s-token" open><summary><span lang="en">Same words, different IDs (live from the server)</span><span lang="tr">Aynı kelimeler, farklı ID'ler (sunucudan canlı)</span></summary><div class="body">
+<div style="overflow-x:auto"><table id="cmp"></table></div>
+<p class="mut" lang="en">Several IDs in one cell = the word is split into several tokens by that model.</p>
+<p class="mut" lang="tr">Bir hücrede birden fazla ID = kelime o modelde birkaç token'a bölünüyor.</p>
+</div></details>
+
+<details class="sec s-axes" open><summary><span lang="en">What is token 9246 in each model?</span><span lang="tr">9246 numaralı token her modelde nedir?</span></summary><div class="body">
+<table id="same"></table></div></details>
+
+<details class="sec s-maps"><summary><span lang="en">Why the leading space matters</span><span lang="tr">Baştaki boşluk neden önemli</span></summary><div class="body">
+<p lang="en">GPT-2 and Qwen use byte-level BPE: a leading space is part of the token, so <code>king</code> and <code> king</code> have different IDs and different vectors. Gemma uses SentencePiece, which writes the space as <code>▁</code>. Turkish words are often split into several pieces by English-centred vocabularies (GPT-2), and more cleanly by the multilingual ones (Qwen, Gemma).</p>
+<p lang="tr">GPT-2 ve Qwen bayt düzeyinde BPE kullanır: baştaki boşluk token'ın parçasıdır, bu yüzden <code>king</code> ve <code> king</code> farklı ID ve farklı vektörlere sahiptir. Gemma, boşluğu <code>▁</code> olarak yazan SentencePiece kullanır. Türkçe kelimeler İngilizce ağırlıklı sözlüklerde (GPT-2) çok parçaya bölünür; çok dilli olanlarda (Qwen, Gemma) daha düzgün bölünür.</p>
+</div></details>
+</main>
+<script>
+const WORDS=["king","queen","cat","kral","kraliçe","elma"];
+const j=async u=>(await fetch(u)).json();
+(async()=>{
+  const ms=(await j("/api/models")).models;
+  const metas=await Promise.all(ms.map(m=>j("/api/meta?model="+m.slug)));
+  const ws=await Promise.all(ms.map(m=>j("/api/words?words="+WORDS.join(",")+"&model="+m.slug)));
+  const tr=document.getElementById("cmp");
+  tr.innerHTML="<tr><th>model</th><th>vocab</th><th>dims</th>"+WORDS.map(w=>"<th>"+w+"</th>").join("")+"</tr>"+
+   ms.map((m,i)=>"<tr><td>"+m.slug+"</td><td>"+metas[i].vocab.toLocaleString()+"</td><td>"+metas[i].dims+"</td>"+
+    WORDS.map((w,k)=>{const r=ws[i][k];return "<td>"+r.no_space.ids.join("+")+"<br><span class='mut'>␣ "+r.with_space.ids.join("+")+"</span></td>"}).join("")+"</tr>").join("");
+  const t=await Promise.all(ms.map(m=>j("/api/token/9246?model="+m.slug)));
+  document.getElementById("same").innerHTML="<tr><th>model</th><th>ID</th><th>token</th></tr>"+ms.map((m,i)=>"<tr><td>"+m.slug+"</td><td>9246</td><td>'"+t[i].token+"'</td></tr>").join("");
+})();
+</script></body></html>

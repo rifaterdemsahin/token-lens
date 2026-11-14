@@ -6,7 +6,9 @@ from functools import lru_cache
 import numpy as np
 from tokenizers import Tokenizer
 
-DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
+from .models import DEFAULT_MODEL, MODELS
+
+DATA_ROOT = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
 
 # Axis definitions: (positive terms, negative terms). Each term is a word; axis = mean(pos) - mean(neg).
 # For pair axes the pairs are listed explicitly so the UI can show them.
@@ -19,14 +21,31 @@ AXES = {
 }
 
 
+def _byte_decoder():
+    """Inverse of GPT-2's bytes_to_unicode: printable stand-in char -> raw byte."""
+    bs = list(range(33, 127)) + list(range(161, 173)) + list(range(174, 256))
+    cs, n = bs[:], 0
+    for b in range(256):
+        if b not in bs:
+            bs.append(b); cs.append(256 + n); n += 1
+    return {chr(c): b for b, c in zip(bs, cs)}
+
+
+BYTE_DEC = _byte_decoder()
+
+
 class Lens:
-    def __init__(self, data_dir: str = DATA_DIR):
+    def __init__(self, slug: str = DEFAULT_MODEL):
+        data_dir = os.path.join(DATA_ROOT, slug)
+        self.slug = slug
         self.tok = Tokenizer.from_file(os.path.join(data_dir, "tokenizer.json"))
         self.emb = np.load(os.path.join(data_dir, "embeddings.f16.npy"), mmap_mode="r")
         self.pca = np.load(os.path.join(data_dir, "pca3.npy"), mmap_mode="r")
         with open(os.path.join(data_dir, "meta.json")) as fh:
             self.meta = json.load(fh)
         self.vocab, self.dims = self.emb.shape
+        self.bytelevel = "Ġ" in self.tok.get_vocab()
+        self.tok_vocab = self.tok.get_vocab_size()  # matrix may be padded beyond the tokenizer vocab
         # Row norms, computed in chunks to keep memory flat.
         self.norms = np.empty(self.vocab, dtype=np.float32)
         for i in range(0, self.vocab, 8192):
@@ -35,23 +54,30 @@ class Lens:
         self._axes_cache = {}
 
     # ---- tokens
+    def enc(self, text: str):
+        return self.tok.encode(text, add_special_tokens=False)
+
     def token_str(self, i: int) -> str:
         return self.tok.id_to_token(int(i)) or ""
 
-    @staticmethod
-    def display(tok: str) -> str:
-        """GPT-2 byte-level BPE marks a leading space as 'Ġ' (and newline as 'Ċ')."""
-        return tok.replace("Ġ", " ").replace("Ċ", "\\n")
+    def display(self, tok: str) -> str:
+        """Byte-level BPE marks a leading space as 'Ġ' (newline 'Ċ'); SentencePiece uses '▁'."""
+        if self.bytelevel and tok and all(ch in BYTE_DEC for ch in tok):
+            try:
+                return bytes(BYTE_DEC[ch] for ch in tok).decode("utf-8").replace("\n", "\\n")
+            except UnicodeDecodeError:
+                pass  # partial UTF-8 sequence: show the raw fragment
+        return tok.replace("Ġ", " ").replace("▁", " ").replace("Ċ", "\\n")
 
     def tokenize(self, text: str):
-        enc = self.tok.encode(text)
+        enc = self.enc(text)
         out = []
         for tid, raw in zip(enc.ids, enc.tokens):
             out.append({
                 "token": self.display(raw),
                 "token_id": tid,
                 "byte_repr": list(self.display(raw).encode("utf-8", errors="replace")),
-                "leading_space": raw.startswith("Ġ"),
+                "leading_space": raw.startswith(("Ġ", "▁")),
             })
         return out
 
@@ -61,10 +87,10 @@ class Lens:
     def word_ids(self, word: str):
         """Return (ids, variant): prefer the ' word' (leading space) single token, else 'word'."""
         for cand in (" " + word, word):
-            ids = self.tok.encode(cand).ids
+            ids = self.enc(cand).ids
             if len(ids) == 1:
                 return ids
-        return self.tok.encode(" " + word).ids  # multi-token word: caller averages
+        return self.enc(" " + word).ids  # multi-token word: caller averages
 
     def word_vec(self, word: str) -> np.ndarray:
         ids = self.word_ids(word)
@@ -77,6 +103,7 @@ class Lens:
         for i in range(0, self.vocab, 8192):
             sims[i:i + 8192] = self.emb[i:i + 8192].astype(np.float32) @ v
         sims /= self.norms
+        sims[self.tok_vocab:] = -np.inf
         for e in exclude:
             sims[int(e)] = -np.inf
         top = np.argpartition(-sims, k)[:k]
@@ -119,7 +146,7 @@ class Lens:
         excl = set(self.word_ids(a) + self.word_ids(b) + self.word_ids(c))
         # also exclude the no-space variants of the inputs
         for w in (a, b, c):
-            excl.update(self.tok.encode(w).ids)
+            excl.update(self.enc(w).ids)
         return self.neighbors_of_vec(v, k, exclude=excl)
 
     def pca_coords(self, ids):
@@ -127,6 +154,13 @@ class Lens:
                  "x": float(self.pca[i][0]), "y": float(self.pca[i][1]), "z": float(self.pca[i][2])} for i in ids]
 
 
-@lru_cache(maxsize=1)
-def get_lens() -> Lens:
-    return Lens()
+@lru_cache(maxsize=3)
+def get_lens(slug: str = DEFAULT_MODEL) -> Lens:
+    if slug not in MODELS or not os.path.exists(os.path.join(DATA_ROOT, slug, "meta.json")):
+        raise KeyError(slug)
+    return Lens(slug)
+
+
+def available_models():
+    return [{"slug": s, "label": c["label"], "hf": c["hf"]} for s, c in MODELS.items()
+            if os.path.exists(os.path.join(DATA_ROOT, s, "meta.json"))]
